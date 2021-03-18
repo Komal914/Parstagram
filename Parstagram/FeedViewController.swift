@@ -8,18 +8,33 @@
 import UIKit
 import Parse
 import AlamofireImage
+import MessageInputBar
 
 class FeedViewController: UIViewController, UITableViewDelegate, UITableViewDataSource  {
 
     @IBOutlet weak var tableView: UITableView!
     
+    let commentBar = MessageInputBar()
+    
+    var showsCommentBar = false
+    
     var posts = [PFObject]()
+    
 
     
     override func viewDidLoad() {
         super.viewDidLoad()
         tableView.delegate = self
         tableView.dataSource = self
+        tableView.keyboardDismissMode = .interactive
+    }
+    
+    override var inputAccessoryView: UIView?{
+        return commentBar
+    }
+    
+    override var canBecomeFirstResponder: Bool {
+        return showsCommentBar
     }
     
     
@@ -27,7 +42,7 @@ class FeedViewController: UIViewController, UITableViewDelegate, UITableViewData
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         let query = PFQuery(className:"Posts")
-        query.includeKey("author")
+        query.includeKeys(["author", "comments", "comments.author"])
         query.limit = 20
         query.findObjectsInBackground{(posts, Error)in
             if(posts != nil)
@@ -40,29 +55,95 @@ class FeedViewController: UIViewController, UITableViewDelegate, UITableViewData
     
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return posts.count
+        let post = posts[section] //create a section for each post in posts array
+        let comments = (post["comments"] as? [PFObject]) ?? []
+        
+        return comments.count + 2
+       
     }
     
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return posts.count //there should be a section for each post
+    }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "PostCell") as! PostCell
         
-        let post = posts[indexPath.row]
-        let user = post["author"] as! PFUser
+        let post = posts[indexPath.section]
+        let comments = (post["comments"] as? [PFObject]) ?? []
+ 
+        if indexPath.row == 0{
+            let cell = tableView.dequeueReusableCell(withIdentifier: "PostCell") as! PostCell
+            
+           
+            let user = post["author"] as! PFUser
 
-        cell.usernameLabel.text = user.username
+            cell.usernameLabel.text = user.username
+            
+            cell.captionLabel.text = post["caption"] as! String
+            
+            //gets the url from parse
+            let imageFile = post["image"] as! PFFileObject
+            let urlString = imageFile.url!
+            let url = URL(string: urlString)!
+            
+            cell.photoView.af_setImage(withURL: url)
+            
+            
+            return cell
+        }
+        else if (indexPath.row <= comments.count)
+        {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "CommentCell") as! CommentCell
+            let comment = comments[indexPath.row - 1 ] //post = 1, 1-1= 0 = 1st comment
+            cell.commentLabel.text = comment["text"] as? String
+            
+            let user = comment["author"] as! PFUser
+            cell.nameLabel.text = user.username
+            
+            return cell
+        }
         
-        cell.captionLabel.text = post["caption"] as! String
+        else{
+            let cell = tableView.dequeueReusableCell(withIdentifier: "AddCommentCell")!
+            return cell
+        }
         
-        //gets the url from parse
-        let imageFile = post["image"] as! PFFileObject
-        let urlString = imageFile.url!
-        let url = URL(string: urlString)!
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let post = posts[indexPath.row]
+
+        let comments = (post["comments"] as? [PFObject]) ??
         
-        cell.photoView.af_setImage(withURL: url) 
+        if indexPath.row == comments.count + 1 {
+            showsCommentBar = true
+            becomeFirstResponder()
+            commentBar.inputView?.becomeFirstResponder()
+        }
         
         
-        return cell
+//        comment["text"] = "This is a comment"
+//        comment["post"] = post
+//        comment["author"] = PFUser.current()!
+//
+//        post.add(comment, forKey: "comments")
+//
+//        post.saveInBackground {(success, error) in
+//            if(success)
+//            {
+//                print("Comment saved!")
+//            }
+//            else
+//            {
+//             print("Error saving comments")
+//            }
+//
+//
+//        }
+        
+
+         
+
     }
     
     
@@ -76,5 +157,27 @@ class FeedViewController: UIViewController, UITableViewDelegate, UITableViewData
         // Pass the selected object to the new view controller.
     }
     */
-
+    
+    //user is able to log out
+    @IBAction func onLogoutButton(_ sender: Any) {
+        
+        PFUser.logOut() //tells our backend we are logged out
+        
+        
+        let main = UIStoryboard(name: "Main" , bundle: nil)
+        let loginViewController = main.instantiateViewController(withIdentifier: "LoginViewController")
+        
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+            let delegate = windowScene.delegate as? SceneDelegate
+          else {
+            return
+          }
+        delegate.window?.rootViewController = loginViewController
+        
+    }
+    
+    
+    
 }
+
+
