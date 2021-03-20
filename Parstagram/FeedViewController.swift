@@ -61,13 +61,13 @@ class FeedViewController: UIViewController, UITableViewDelegate, UITableViewData
         commentBar.inputTextView.text = nil
         showsCommentBar = false
         becomeFirstResponder()
+        commentBar.inputTextView.resignFirstResponder()
     }
     
     @objc func keyboardWillBeHidden(note: Notification){
         commentBar.inputTextView.text = nil
         showsCommentBar = false
         becomeFirstResponder()
-        commentBar.inputTextView.resignFirstResponder()
     }
     
     
@@ -84,7 +84,7 @@ class FeedViewController: UIViewController, UITableViewDelegate, UITableViewData
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         let query = PFQuery(className:"Posts")
-        query.includeKeys(["author", "comments", "comments.author"])
+        query.includeKeys(["author", "comments", "comments.author", "comments.Author", "username"])
         query.limit = 20
         query.findObjectsInBackground{(posts, Error)in
             if(posts != nil)
@@ -132,10 +132,18 @@ class FeedViewController: UIViewController, UITableViewDelegate, UITableViewData
                let comment = comments[indexPath.row - 1]
                cell.commentLabel.text = comment["text"] as? String
                 
-               let user = comment["author"] as? PFUser
-            cell.nameLabel.text = user!.username
+            let user: PFUser?
+            if let userA = comment["author"] {
+                user = userA as! PFUser
+                cell.nameLabel.text = user?.username
+            } else if let userB = comment["Author"] {
+                user = userB as! PFUser
+                cell.nameLabel.text = user?.username
+            }
+               // let user = comment["author"] as? PFUser
             
-            print ("This is the username: \(user!.username)")
+            
+            // print ("This is the username: \(user?.username)")
                
                return cell
            }else{
